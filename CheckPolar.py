@@ -11,13 +11,13 @@ import platform
 import sys
 import copy
 
-#
-# Material Builder 
+# Check polarity of .in files
 # Author: Jakub Kaminski, UCLA 2015
-#    Modified by Boya Song, UCLA Winter 2015
+#    Modified by Boya Song, UCLA Winter 2016
 #
-# Based on Interface Builder
-#
+# Based on MatBuilder-V1
+
+
 if len(sys.argv) <=1:
     print "Usage:\n%s optionsFile"%sys.argv[0]
     exit()
@@ -166,12 +166,13 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
     # represent the atom types by prime numbers
     ele_n = np.empty([nAtoms, 1]); 
     ii=0;
-    for i in set(atomLabels):
-        ele_n = np.where(atomLabels == i, primes[ii], ele_n);
+    atomLabels = np.array(atomLabels);
+    for i in xrange(min(atomLabels), max(atomLabels)+1):
+        ele_n[atomLabels == i]= primes[ii];
         ii += 1;
     ele_n = np.outer(ele_n,ele_n);
     ele_n[range(nAtoms), range(nAtoms)] = 0;
-    
+
     # build the distance matrix (size nAtoms*nAtoms, entry i,j represent for the distance between i-th atom and j-th atom)
     atom_dist = np.empty([nAtoms, nAtoms], dtype=float);
     for i in xrange(0, nAtoms):
@@ -228,8 +229,8 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
 
                 # # can speed up the code if we only want to get polar/non-polar 
                 # if np.setdiff1d(data_upper_dist,data_lower_dist):
-                # 	polar = True;
-                # 	break;
+                #     polar = True;
+                #     break;
 
 
                 data_upper_type= ele_n[u_lidx,:];
@@ -237,8 +238,8 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
 
                 # # can speed up the code if we only want to get polar/non-polar 
                 # if np.setdiff1d(data_upper_type, data_lower_type).size:
-                # 	polar = True;
-                # 	break;
+                #     polar = True;
+                #     break;
 
                 # for each atom, sort the distance from this atom to the others (small to large)
                 sort1idx_u = np.argsort(data_upper_dist, axis = 1);
@@ -274,9 +275,9 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
                     polar=True;
                     typeDiff = type_ok.any();
                     if typeDiff:
-                    	minDiffRate = float("nan");
+                        minDiffRate = float("nan");
                     else:
-                    	minDiffRate = np.min([np.min(dist_diff), minDiffRate]);
+                        minDiffRate = np.min([np.min(dist_diff), minDiffRate]);
                     break;
     
         if not(polar) and not(firstRound): # first round NonPolar
@@ -325,7 +326,7 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
     
         if polar and firstRound:
             layer_thickness = layer_thickness + 1;
-            np.append(minNP_z,surface_z[-1]);
+            minNP_z = np.append(minNP_z,surface_z[-1]);
 
         data_delete = (atom_coor[:, 2]==surface_z[-1]);
         data_delete = data_delete[~forDelete];
@@ -401,22 +402,26 @@ for fn in os.listdir(folderPath):
         print "Reading structure from file "+fn
         atom_coor = [];
         atom_type = [];
+        atom_label = [];
         nline = 0;
+        nEle = 0;
 
 
         with open(fPath+fn, 'r') as openfileobject:
-        	for line in openfileobject:
-        		nline +=1;
-        		line  = line.split();
-        		if nline == 1:
-        			vec_x = np.array([float(line[1]),float(line[2]), float(line[3])])
-        		elif nline ==2:
-        			vec_y = np.array([float(line[1]),float(line[2]), float(line[3])])
-        		elif nline ==3:
-        			vec_z = np.array([float(line[1]),float(line[2]), float(line[3])])
-        		else:
-        			atom_coor.append([float(line[1]),float(line[2]), float(line[3])]);
-        			atom_type.append(line[-1]);
+            for line in openfileobject:
+                nline +=1;
+                line  = line.split();
+                if nline == 1:
+                    vec_x = np.array([float(line[1]),float(line[2]), float(line[3])])
+                elif nline ==2:
+                    vec_y = np.array([float(line[1]),float(line[2]), float(line[3])])
+                elif nline ==3:
+                    vec_z = np.array([float(line[1]),float(line[2]), float(line[3])])
+                else:
+                    atom_coor.append([float(line[1]),float(line[2]), float(line[3])]);
+                    if not(line[-1] in atom_type):
+                        atom_type.append(line[-1]);
+                    atom_label.append(atom_type.index(line[-1]));
 
         openfileobject.close()
 
@@ -425,13 +430,13 @@ for fn in os.listdir(folderPath):
 
         # check polarity
         print "Check polarity"
-        polar,ped,minDiff, typeDiff = checkPolar(atom_coor,atom_type, vec_x, vec_y, z_digit, dis_tol_rate, inverse_struc = True)
+        polar,ped,minDiff, typeDiff = checkPolar(atom_coor,atom_label, vec_x, vec_y, z_digit, dis_tol_rate, inverse_struc = True)
         isPolar.append(polar)
 
         if not(polar):
             print "The structure is non-polar with perodicity %s angstrom."%ped  
         elif typeDiff:
-        	print "The structure is polar, with a mismatch on atom type."
+            print "The structure is polar, with a mismatch on atom type."
         else:
             print "The structure is polar, with a minimal distance difference rate %s."%minDiff 
 
