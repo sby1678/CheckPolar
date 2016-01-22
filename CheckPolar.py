@@ -10,6 +10,7 @@ import networkx
 import platform
 import sys
 import copy
+import pdb
 
 # Check polarity of .in files
 # Author: Jakub Kaminski, UCLA 2015
@@ -183,12 +184,11 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
     atom_dist[range(nAtoms), range(nAtoms)] = -1; # avoid zero-division in later steps
 
     # round the z-coordinate
-    atom_coor[:, 2] = np.floor(atom_coor[:, 2]*(10**z_digit)) /(10**z_digit);
+    atom_coor[:, 2] = np.around(atom_coor[:, 2], decimals = z_digit);
     # atoms with same cut_z coord are considered on the same "surface"
     # inverse_struc=False: the resut is ordered from small to large
     if inverse_struc:
-        surface_z, idx= np.squeeze(np.unique(atom_coor[:, 2], return_inverse=True)); 
-        surface_z = surface_z[idx];
+        surface_z= np.squeeze(np.unique(atom_coor[:, 2], return_inverse=True))[0]; 
     else:
         surface_z= np.squeeze(np.unique(atom_coor[:, 2], return_inverse=False)); 
 
@@ -197,14 +197,14 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
     firstRound = False;
     forDelete = np.zeros([nAtoms], dtype=bool);
 
-    while(surface_n>=2 and not(abs(surface_z[0]-surface_z[-1])<abs(init_z - surface_z[-1]) and not(firstRound))): # the first round non-polar must be found within the upper half of the structure
+    while(surface_n>=2 and not(abs(surface_z[0]-surface_z[-1])<abs(init_z-surface_z[-1]) and not(firstRound))): # the first round non-polar must be found within the upper half of the structure
         if max_compare> (surface_n/2): # take advange of integer division
             max_compare=(surface_n/2);
         polar=False;
         doCompare = True;
 
         if firstRound:
-            if abs(init_z -  surface_z[-1]) < perodicity_lower_bound:
+            if abs(init_z-surface_z[-1]) < perodicity_lower_bound:
                 doCompare = False;
 
         if doCompare:
@@ -215,8 +215,6 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
                 u_lidx = u_lidx [~forDelete];
                 l_lidx =atom_coor[:, 2]==surface_z[-nSurface-1];
                 l_lidx = l_lidx[~forDelete];
-            
-            
                 # if the number of atoms are differnent
                 if sum(u_lidx) != sum(l_lidx):
                     polar=True;
@@ -244,12 +242,12 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
                 # for each atom, sort the distance from this atom to the others (small to large)
                 sort1idx_u = np.argsort(data_upper_dist, axis = 1);
                 sort1idx_l = np.argsort(data_lower_dist,axis = 1);
+
                 for i in xrange(nAtomPerLayer):
                     data_upper_type[i,:] = data_upper_type[i,sort1idx_u[i,:]];
                     data_lower_type[i,:] = data_lower_type[i,sort1idx_l[i,:]];
                     data_upper_dist[i,:] = data_upper_dist[i,sort1idx_u[i,:]];
                     data_lower_dist[i,:] = data_lower_dist[i,sort1idx_l[i,:]];
-
 
                 # for each atom, sort the type from this atom to the others (small to large)
                 sort2idx_u = np.argsort(data_upper_type, axis = 1);
@@ -259,7 +257,6 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
                     data_lower_type[i,:] = data_lower_type[i,sort2idx_l[i,:]];
                     data_upper_dist[i,:] = data_upper_dist[i,sort2idx_u[i,:]];
                     data_lower_dist[i,:] = data_lower_dist[i,sort2idx_l[i,:]];
-            
 
                 dist_diff = np.zeros([nAtomPerLayer,nAtomPerLayer], dtype = float); # rate of difference on distance
                 type_ok = np.zeros([nAtomPerLayer,nAtomPerLayer], dtype = bool); # true if the type items are matching between a upper-atom and a lower-atom
@@ -269,6 +266,7 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
                          type_ok[idx_upper,idx_lower]= all(data_upper_type[idx_upper,:]==data_lower_type[idx_lower,:]);
 
                 match_matrix = (dist_diff<=dist_tol_rate) & type_ok;
+
                 g = networkx.to_networkx_graph(match_matrix); # 
                 # find the maximal matching of graph g
                 if len(networkx.maximal_matching(g))< nAtomPerLayer: 
@@ -279,54 +277,55 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
                     else:
                         minDiffRate = np.min([np.min(dist_diff), minDiffRate]);
                     break;
-    
-        if not(polar) and not(firstRound): # first round NonPolar
-            firstRound = True
-            layer_thickness = 0
-            minNP_z = surface_z[-1]
-            perodicity_lower_bound = abs(init_z - minNP_z); # the perodicity should be larger than this
-        else:
-            if not(polar) and firstRound and (abs(minNP_z[0] - surface_z[-1])>perodicity_lower_bound): # the second round non-polar
-                minNP_z = np.append(minNP_z, surface_z[-1]);
+                # END of nSurface loop
+
+            if not(polar) and not(firstRound): # first round NonPolar
+                firstRound = True
+                layer_thickness = 0
+                minNP_z = surface_z[-1]
+                perodicity_lower_bound = abs(init_z - minNP_z); # the perodicity should be larger than this
+            else:
+                if not(polar) and firstRound and (abs(minNP_z[0] - surface_z[-1])>perodicity_lower_bound): # the second round non-polar
+                    minNP_z = np.append(minNP_z, surface_z[-1]);
+                    layer_thickness = layer_thickness + 1;
+                    z_thickness = minNP_z[0]-minNP_z[-1];
+                    #  vz(3) = z_thickness;
+                    #  isNP = ismember(atom_coor(:,3), minNP_z);
+                    #  minNPStruc= atom_coor(isNP,:);
+                    #  minNPStruc(:,3)= minNPStruc(:,3) - minNP_z(end);
+                    #  atom_type = atom_type(isNP);
+                    #  atom_cell=[num2cell(minNPStruc) atom_type];
+                    
+                     #  # create a new txt file that contains the maximal non-polar structure
+                    # isWin = ~isempty(strfind(computer, 'PCWIN'));
+                    # [pathstr,name,ext] = fileparts(filepath);
+                    # mkdir(pathstr,'minNonPolar5');
+                    # if isWin
+                    #   pathstr=strcat(pathstr, '\minNonPolar5');
+                    # else
+                    #    pathstr=strcat(pathstr, '/minNonPolar5');
+                    # end
+                    # oldpath=cd(pathstr);
+                    # fileID=fopen([name '-minNonPolar5' ext], 'w+');
+                    # formatSpec1='lattice_vector \t %f \t %f \t %f \n';
+                    # fprintf(fileID,formatSpec1,vx);
+                    # fprintf(fileID,formatSpec1,vy);
+                    # fprintf(fileID,formatSpec1,vz);
+                    # formatSpec2='atom \t %f \t %f \t %f \t %s \n';
+                    
+                    # nrows= size(atom_cell,1);
+                    # for row = 1:nrows:
+                    #     fprintf(fileID,formatSpec2,atom_cell{row, :});
+                    # fclose(fileID);
+                    # #movefile([name '-nonpolar' ext], pathstr);
+                    # cd(oldpath);
+                    
+                    # top_z=minNP_z(1);
+                    return polar, z_thickness, minDiffRate, typeDiff
+        
+            if polar and firstRound:
                 layer_thickness = layer_thickness + 1;
-                z_thickness = minNP_z[0]-minNP_z[-1];
-    #             vz(3) = z_thickness;
-    #             isNP = ismember(atom_coor(:,3), minNP_z);
-    #             minNPStruc= atom_coor(isNP,:);
-    #             minNPStruc(:,3)= minNPStruc(:,3) - minNP_z(end);
-    #             atom_type = atom_type(isNP);
-    #             atom_cell=[num2cell(minNPStruc) atom_type];
-                
-    #             # create a new txt file that contains the maximal non-polar structure
-    #             isWin = ~isempty(strfind(computer, 'PCWIN'));
-    #             [pathstr,name,ext] = fileparts(filepath);
-    #             mkdir(pathstr,'minNonPolar5');
-    #             if isWin
-    #                 pathstr=strcat(pathstr, '\minNonPolar5');
-    #             else
-    #                 pathstr=strcat(pathstr, '/minNonPolar5');
-    #             end
-    #             oldpath=cd(pathstr);
-    #             fileID=fopen([name '-minNonPolar5' ext], 'w+');
-    #             formatSpec1='lattice_vector \t %f \t %f \t %f \n';
-    #             fprintf(fileID,formatSpec1,vx);
-    #             fprintf(fileID,formatSpec1,vy);
-    #             fprintf(fileID,formatSpec1,vz);
-    #             formatSpec2='atom \t %f \t %f \t %f \t %s \n';
-                
-    #             nrows= size(atom_cell,1);
-    #             for row = 1:nrows:
-    #                 fprintf(fileID,formatSpec2,atom_cell{row, :});
-    #             fclose(fileID);
-    #             #movefile([name '-nonpolar' ext], pathstr);
-    #             cd(oldpath);
-    #            
-    #            top_z=minNP_z(1);
-                return polar, z_thickness, minDiffRate
-    
-        if polar and firstRound:
-            layer_thickness = layer_thickness + 1;
-            minNP_z = np.append(minNP_z,surface_z[-1]);
+                minNP_z = np.append(minNP_z,surface_z[-1]);
 
         data_delete = (atom_coor[:, 2]==surface_z[-1]);
         data_delete = data_delete[~forDelete];
