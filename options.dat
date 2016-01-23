@@ -1,5 +1,6 @@
 folderPath		C:\Users\Boya\Desktop\text		# the path of folder that contains all of the .in files for checking;
 z_digit			4 				# options for check polar
-dis_tol_rate		0.0001			# options for check polar
+dis_tol_rate		1e-4			# options for check polar
+Find_all_nonpolar_surface	0 				
 
 # very naive interface right now

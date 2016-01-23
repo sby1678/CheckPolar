@@ -10,7 +10,7 @@ import networkx
 import platform
 import sys
 import copy
-import pdb
+import pdb # for debug 
 
 # Check polarity of .in files
 # Author: Jakub Kaminski, UCLA 2015
@@ -52,7 +52,11 @@ def readInput(inputFile):
     line = line.split()
     dis_tol_rate = float(line[1])
 
-    return folderPath, z_digit, dis_tol_rate
+    line = file.readline()
+    line = line.split()
+    checkAllLayer = bool(line[1])
+
+    return folderPath, z_digit, dis_tol_rate, checkAllLayer
 
 def compute_min_dist(vec_v, vec_a, vec_b):
 # algorithm provided by Craig Schroeder
@@ -130,7 +134,6 @@ def compute_min_dist(vec_v, vec_a, vec_b):
 
 def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, max_compare = float("Inf"), inverse_struc = False):
     # Description of the input variables:
-    # - self: not used here, but required by Python
     # - atom_coor: of the atoms, numpy.array(Natoms,3)
     # - atomLabels: numpy.array with integers denoting atom types, 
     #   i.e [0,1,1,0,2,...,natoms]. The order of the atoms is the same 
@@ -152,8 +155,8 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
 
     #  Return values are 
     #  polar = {True,False} - is structure polar or not
-    #  periodicity = 0  - double number saying what is the periodicity of the strucure in angstrom
-    #  minDiffRate - double number saying what is the minimal distance rate found during the chekcing procedure (especially usful for understanding the polar structures)
+    #  periodicity = 0  - double number saying what is the periodicity of the structure in angstrom
+    #  minDiffRate - double number saying what is the minimal distance rate found during the checking procedure (especially useful for understanding the polar structures)
     
     polar = False
     periodicity = float("nan")
@@ -215,7 +218,7 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
                 u_lidx = u_lidx [~forDelete];
                 l_lidx =atom_coor[:, 2]==surface_z[-nSurface-1];
                 l_lidx = l_lidx[~forDelete];
-                # if the number of atoms are differnent
+                # if the number of atoms are different
                 if sum(u_lidx) != sum(l_lidx):
                     polar=True;
                     break;
@@ -271,11 +274,14 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
                 # find the maximal matching of graph g
                 if len(networkx.maximal_matching(g))< nAtomPerLayer: 
                     polar=True;
-                    typeDiff = type_ok.any();
-                    if typeDiff:
+
+                    g = networkx.to_networkx_graph(type_ok);
+                    if len(networkx.maximal_matching(g))< nAtomPerLayer: 
+                        typeDiff = True;
                         minDiffRate = float("nan");
                     else:
                         minDiffRate = np.min([np.min(dist_diff), minDiffRate]);
+
                     break;
                 # END of nSurface loop
 
@@ -283,12 +289,13 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
                 firstRound = True
                 layer_thickness = 0
                 minNP_z = surface_z[-1]
-                perodicity_lower_bound = abs(init_z - minNP_z); # the perodicity should be larger than this
+                perodicity_lower_bound = abs(init_z - minNP_z); # the periodicity should be larger than this
             else:
                 if not(polar) and firstRound and (abs(minNP_z[0] - surface_z[-1])>perodicity_lower_bound): # the second round non-polar
                     minNP_z = np.append(minNP_z, surface_z[-1]);
                     layer_thickness = layer_thickness + 1;
                     z_thickness = minNP_z[0]-minNP_z[-1];
+                    minDiffRate = float("nan")
                     #  vz(3) = z_thickness;
                     #  isNP = ismember(atom_coor(:,3), minNP_z);
                     #  minNPStruc= atom_coor(isNP,:);
@@ -345,6 +352,167 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
 
     return polar, z_thickness, minDiffRate, typeDiff
 
+def checkPolar_all(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, max_compare = float("Inf"), inverse_struc = False):
+    # Description of the input variables:
+    # - atom_coor: of the atoms, numpy.array(Natoms,3)
+    # - atomLabels: numpy.array with integers denoting atom types, 
+    #   i.e [0,1,1,0,2,...,natoms]. The order of the atoms is the same 
+    #   as in positions array.
+    # - atomTypes: dictionary that allows to decode entries in the atomLabels
+    #   in terms of real chemical species. 
+    #   Example:
+    #    atomTypes = {0: 'Ga', 1: 'As', 2: 'H'}
+    #    which means that integer 0 corresponds to "Ga", integer 1 to "As" and 2 to "H"
+    #   Usage:
+    #    find what is the atom type of the 3rd atom in the structure:
+    #    atomLabels = [0,1,1,0,2]
+    #    atom = atomLabels[2]  # remeberin Python we count from 0, so 3rd atom is 2nd in the structure
+    #    type = atomTypes[atom]
+    #    In this case atom will be set to "1", and type to "As"
+    #
+    # - vec_x: lattice vector X, numpy.array[x1, x2, x3]
+    # - vec_y: lattice vector Y, numpy.array[y1, y2, y3]
+
+    # first 180 primes
+    primes = [2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101,103,107,109,113,127,131,137,139,149,151,157,163,167,173,179,181,191,193,197,199,211,223,227,229,233,239,241,251,257,263,269,271,277,281,283,293,307,311,313,317,331,337,347,349,353,359,367,373,379,383,389,397,401,409,419,421,431,433,439,443,449,457,461,463,467,479,487,491,499,503,509,521,523,541,547,557,563,569,571,577,587,593,599,601,607,613,617,619,631,641,643,647,653,659,661,673,677,683,691,701,709,719,727,733,739,743,751,757,761,769,773,787,797,809,811,821,823,827,829,839,853,857,859,863,877,881,883,887,907,911,919,929,937,941,947,953,967,971,977,983,991,997,1009,1013,1019,1021,1031,1033,1039,1049,1051,1061,1063,1069];
+
+    nAtoms = len(atomLabels);
+    # represent the atom types by prime numbers
+    ele_n = np.empty([nAtoms, 1]); 
+    ii=0;
+    atomLabels = np.array(atomLabels);
+    for i in xrange(min(atomLabels), max(atomLabels)+1):
+        ele_n[atomLabels == i]= primes[ii];
+        ii += 1;
+    ele_n = np.outer(ele_n,ele_n);
+    ele_n[range(nAtoms), range(nAtoms)] = 0;
+
+    # build the distance matrix (size nAtoms*nAtoms, entry i,j represent for the distance between i-th atom and j-th atom)
+    atom_dist = np.empty([nAtoms, nAtoms], dtype=float);
+    for i in xrange(0, nAtoms):
+        for j in xrange(i,nAtoms):
+            atom_dist[i,j] = compute_min_dist(atom_coor[i, 0:2] - atom_coor[j, 0:2], vecX, vecY);
+            atom_dist[i,j] = atom_dist[i,j]+(atom_coor[i, 2] - atom_coor[j, 2])**2;
+            atom_dist[j,i] = atom_dist[i,j]
+    atom_dist[range(nAtoms), range(nAtoms)] = -1; # avoid zero-division in later steps
+
+    # round the z-coordinate
+    atom_coor[:, 2] = np.around(atom_coor[:, 2], decimals = z_digit);
+    # atoms with same cut_z coord are considered on the same "surface"
+    # inverse_struc=False: the resut is ordered from small to large
+    if inverse_struc:
+        surface_z= np.squeeze(np.unique(atom_coor[:, 2], return_inverse=True))[0]; 
+    else:
+        surface_z= np.squeeze(np.unique(atom_coor[:, 2], return_inverse=False)); 
+
+    surface_n=len(surface_z); # number of surfaces
+    surface_thickness = surface_n;
+    init_z = surface_z[-1]; # the first surface to consider
+    firstRound = False;
+    forDelete = np.zeros([nAtoms], dtype=bool);
+    is_Polar = np.zeros([surface_n], dtype=bool);
+    z_coords = surface_z;
+    minDiffRate = np.empty([surface_n])
+    typeDiff = np.zeros([surface_n], dtype=bool);
+
+    for current_surface in xrange(surface_thickness-1): 
+        if max_compare> (surface_n/2): # take advange of integer division
+            max_compare=(surface_n/2);
+
+        for nSurface in xrange(0,max_compare):
+        #each row represents for an atom
+        # the indices of atoms on the upper surface & lower surface
+            u_lidx = atom_coor[:, 2]==surface_z[nSurface];
+            l_lidx =atom_coor[:, 2]==surface_z[-nSurface-1];
+            # if the number of atoms are differnent
+            if sum(u_lidx) != sum(l_lidx):
+                is_Polar[current_surface]=True;
+                break;
+               
+            nAtomPerLayer = sum(u_lidx);
+
+            data_upper_dist= atom_dist[u_lidx,:];
+            data_lower_dist= atom_dist[l_lidx,:];
+
+            # # can speed up the code if we only want to get polar/non-polar 
+            # if np.setdiff1d(data_upper_dist,data_lower_dist):
+            #     polar = True;
+            #     break;
+
+
+            data_upper_type= ele_n[u_lidx,:];
+            data_lower_type= ele_n[l_lidx,:];
+
+            # # can speed up the code if we only want to get polar/non-polar 
+            # if np.setdiff1d(data_upper_type, data_lower_type).size:
+            #     polar = True;
+            #     break;
+
+            # for each atom, sort the distance from this atom to the others (small to large)
+            sort1idx_u = np.argsort(data_upper_dist, axis = 1);
+            sort1idx_l = np.argsort(data_lower_dist,axis = 1);
+
+            for i in xrange(nAtomPerLayer):
+                data_upper_type[i,:] = data_upper_type[i,sort1idx_u[i,:]];
+                data_lower_type[i,:] = data_lower_type[i,sort1idx_l[i,:]];
+                data_upper_dist[i,:] = data_upper_dist[i,sort1idx_u[i,:]];
+                data_lower_dist[i,:] = data_lower_dist[i,sort1idx_l[i,:]];
+
+            # for each atom, sort the type from this atom to the others (small to large)
+            sort2idx_u = np.argsort(data_upper_type, axis = 1);
+            sort2idx_l = np.argsort(data_lower_type,axis = 1);
+            for i in xrange(nAtomPerLayer):
+                data_upper_type[i,:] = data_upper_type[i,sort2idx_u[i,:]];
+                data_lower_type[i,:] = data_lower_type[i,sort2idx_l[i,:]];
+                data_upper_dist[i,:] = data_upper_dist[i,sort2idx_u[i,:]];
+                data_lower_dist[i,:] = data_lower_dist[i,sort2idx_l[i,:]];
+
+            dist_diff = np.zeros([nAtomPerLayer,nAtomPerLayer], dtype = float); # rate of difference on distance
+            type_ok = np.zeros([nAtomPerLayer,nAtomPerLayer], dtype = bool); # true if the type items are matching between a upper-atom and a lower-atom
+            for idx_upper in xrange(nAtomPerLayer):
+                for idx_lower in xrange(nAtomPerLayer):
+                     dist_diff[idx_upper,idx_lower] = max(abs(np.divide(data_upper_dist[idx_upper,:]-data_lower_dist[idx_lower,:], data_upper_dist[idx_upper,:]+data_lower_dist[idx_lower,:])));
+                     type_ok[idx_upper,idx_lower]= all(data_upper_type[idx_upper,:]==data_lower_type[idx_lower,:]);
+
+            match_matrix = (dist_diff<=dist_tol_rate) & type_ok;
+
+            g = networkx.to_networkx_graph(match_matrix); # 
+            # find the maximal matching of graph g
+            if len(networkx.maximal_matching(g))< nAtomPerLayer: 
+                is_Polar[current_surface]=True;
+
+                g = networkx.to_networkx_graph(type_ok);
+                if len(networkx.maximal_matching(g))< nAtomPerLayer: 
+                    typeDiff[current_surface] = True;
+                    minDiffRate[current_surface] = float("nan");
+                else:
+                    minDiffRate[current_surface] = np.min([np.min(dist_diff), minDiffRate[current_surface]]);
+
+                break;
+            else:
+                minDiffRate[current_surface] = float("nan");
+
+
+            # END of nSurface loop
+
+
+        data_delete = (atom_coor[:, 2]==surface_z[-1]);
+        atom_dist = atom_dist[~data_delete,:];
+        atom_dist = atom_dist[:,~data_delete];
+        ele_n = ele_n[~data_delete,:];
+        ele_n = ele_n[:,~data_delete];
+        atom_coor = atom_coor[~data_delete,:];
+        surface_n=surface_n-1;
+        surface_z = np.delete(surface_z, -1);
+
+    minDiffRate[-1] = float("nan")
+    is_Polar = is_Polar[::-1];
+    minDiffRate = minDiffRate[::-1]
+    typeDiff = typeDiff[::-1]
+
+    return is_Polar, z_coords, minDiffRate, typeDiff
+
+
 def calcRuntime(tStart,tStop):
     # Converts time between tStop and tStart (given in seconds)
     # to minues:seconds
@@ -372,7 +540,7 @@ def calcRuntime(tStart,tStop):
 tStart = time.time()
 nStruc = 0;
 # Read input
-folderPath, z_digit, dis_tol_rate = readInput(inputFile)
+folderPath, z_digit, dis_tol_rate, checkAllLayer = readInput(inputFile)
 if isWin:
     typeName = folderPath.split("\\")[-1]
 elif isLinux:
@@ -390,10 +558,23 @@ elif isLinux:
 #     print MillerList
 
 isPolar  = []; 
-polarFilename=typeName+"-poalrity.txt"
-file = open(fPath+polarFilename, 'w+')
-file.write("Filename\t\tisPolar\tperodicity\tTypeDiff?\tminDiffRate\n")
-file.close()
+if not(checkAllLayer):
+    polarFilename=typeName+"-poalrity.txt"
+    file = open(fPath+polarFilename, 'w+')
+    file.write("z_digit: %d \n"%z_digit)
+    file.write("relative tolerance of distance difference: %.2e \n \n"%dis_tol_rate)
+    file.write("Filename\t\tisPolar\tperodicity\tTypeDiff?\tminDiffRate\n")
+    file.close()
+else:
+    rstPath = fPath + "allNonPolarRst"
+    if not os.path.exists(rstPath):
+        os.makedirs(rstPath)
+    if isWin:
+        rstPath = rstPath + "\\";
+    elif isLinux:
+        rstPath = rstPath + "/";
+
+
 
 print "********************************************************"
 for fn in os.listdir(folderPath):
@@ -428,32 +609,53 @@ for fn in os.listdir(folderPath):
         atom_coor = np.reshape(atom_coor, [nline-3, 3])
 
         # check polarity
-        print "Check polarity"
-        polar,ped,minDiff, typeDiff = checkPolar(atom_coor,atom_label, vec_x, vec_y, z_digit, dis_tol_rate, inverse_struc = True)
-        isPolar.append(polar)
+        if not(checkAllLayer):
+            print "Check polarity"
+            polar,ped,minDiff, typeDiff = checkPolar(atom_coor,atom_label, vec_x, vec_y, z_digit, dis_tol_rate, inverse_struc = True)
+            isPolar.append(polar)
 
-        if not(polar):
-            print "The structure is non-polar with perodicity %s angstrom."%ped  
-        elif typeDiff:
-            print "The structure is polar, with a mismatch on atom type."
+            if not(polar):
+                print "The structure is non-polar with periodicity %s angstrom."%ped  
+            elif typeDiff:
+                print "The structure is polar, with a mismatch on atom type."   
+            else:
+                print "The structure is polar, with a minimal distance difference rate %.3e."%minDiff 
+
+            file = open(fPath+polarFilename, 'a')
+            file.write(fn+"\t\t%d\t\t%f\t\t%d\t\t%.3e\n"%(polar,ped,typeDiff, minDiff))
+            file.close()
+
+            nStruc+=1;
         else:
-            print "The structure is polar, with a minimal distance difference rate %s."%minDiff 
+            print "Check polarity on all layers"
+            is_Polar, z_coords, minDiffRate, typeDiff = checkPolar_all(atom_coor,atom_label, 
+                vec_x, vec_y, z_digit, dis_tol_rate, inverse_struc = True)
+            file = open(rstPath+fn.split(".")[0]+".txt", 'w+')
+            file.write("z_digit: %d \n"%z_digit)
+            file.write("relative tolerance of distance difference: %.2e \n \n"%dis_tol_rate)
+            file.write("z_coords\tis_Polar\ttypeDiff\tminDiffRate \n")
+                      
+            for i in xrange(0, len(is_Polar)):
+                file.write("%f\t\t%d\t\t%d\t\t%.3e\n"%(z_coords[i],is_Polar[i],typeDiff[i], minDiffRate[i]))
+            file.close()
+            nStruc+=1;
 
-        file = open(fPath+polarFilename, 'a')
-        file.write(fn+"\t\t%d\t\t%f\t\t%d\t\t%f\n"%(polar,ped,typeDiff, minDiff))
-        file.close()
-
-        nStruc+=1;
         print "********************************************************"
 # Stop timer
 tStop = time.time()
 runtime = calcRuntime(tStart,tStop)
 #Output statistics
-nNonPolar = nStruc - sum(isPolar)
-file = open(fPath+'stats.out','w+')
-file.write("Total number of structures: %i\n"%nStruc)
-file.write("Total number of polar structure: %i\n"%nNonPolar)
-file.write("\nRuntime: %i min %i sec\n"%(runtime[0],runtime[1]))
-file.close()
+if not(checkAllLayer):
+    nNonPolar = nStruc - sum(isPolar)
+    file = open(fPath+'stats.out','w+')
+    file.write("Total number of structures: %i\n"%nStruc)
+    file.write("Total number of polar structure: %i\n"%nNonPolar)
+    file.write("\nRuntime: %i min %i sec\n"%(runtime[0],runtime[1]))
+    file.close()
+else:
+    file = open(fPath+'stats.out','w+')
+    file.write("Total number of structures: %i\n"%nStruc)
+    file.write("\nRuntime: %i min %i sec\n"%(runtime[0],runtime[1]))
+    file.close()
 
 # # End of program
