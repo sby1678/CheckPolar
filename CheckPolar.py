@@ -54,7 +54,7 @@ def readInput(inputFile):
 
     line = file.readline()
     line = line.split()
-    checkAllLayer = bool(line[1])
+    checkAllLayer = bool(int(line[1]))
 
     return folderPath, z_digit, dis_tol_rate, checkAllLayer
 
@@ -158,10 +158,8 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
     #  periodicity = 0  - double number saying what is the periodicity of the structure in angstrom
     #  minDiffRate - double number saying what is the minimal distance rate found during the checking procedure (especially useful for understanding the polar structures)
     
-    polar = False
     periodicity = float("nan")
-    minDiffRate = 1
-    typeDiff = False
+
 
     # first 180 primes
     primes = [2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101,103,107,109,113,127,131,137,139,149,151,157,163,167,173,179,181,191,193,197,199,211,223,227,229,233,239,241,251,257,263,269,271,277,281,283,293,307,311,313,317,331,337,347,349,353,359,367,373,379,383,389,397,401,409,419,421,431,433,439,443,449,457,461,463,467,479,487,491,499,503,509,521,523,541,547,557,563,569,571,577,587,593,599,601,607,613,617,619,631,641,643,647,653,659,661,673,677,683,691,701,709,719,727,733,739,743,751,757,761,769,773,787,797,809,811,821,823,827,829,839,853,857,859,863,877,881,883,887,907,911,919,929,937,941,947,953,967,971,977,983,991,997,1009,1013,1019,1021,1031,1033,1039,1049,1051,1061,1063,1069];
@@ -205,6 +203,8 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
             max_compare=(surface_n/2);
         polar=False;
         doCompare = True;
+        minDiffRate = 1
+        typeDiff = False
 
         if firstRound:
             if abs(init_z-surface_z[-1]) < perodicity_lower_bound:
@@ -261,16 +261,18 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
                     data_upper_dist[i,:] = data_upper_dist[i,sort2idx_u[i,:]];
                     data_lower_dist[i,:] = data_lower_dist[i,sort2idx_l[i,:]];
 
-                dist_diff = np.zeros([nAtomPerLayer,nAtomPerLayer], dtype = float); # rate of difference on distance
-                type_ok = np.zeros([nAtomPerLayer,nAtomPerLayer], dtype = bool); # true if the type items are matching between a upper-atom and a lower-atom
+                dist_diff = np.zeros([nAtomPerLayer*2,nAtomPerLayer*2], dtype = float); # rate of difference on distance
+                type_ok = np.zeros([nAtomPerLayer*2,nAtomPerLayer*2], dtype = bool); # true if the type items are matching between a upper-atom and a lower-atom
                 for idx_upper in xrange(nAtomPerLayer):
                     for idx_lower in xrange(nAtomPerLayer):
-                         dist_diff[idx_upper,idx_lower] = max(abs(np.divide(data_upper_dist[idx_upper,:]-data_lower_dist[idx_lower,:], data_upper_dist[idx_upper,:]+data_lower_dist[idx_lower,:])));
-                         type_ok[idx_upper,idx_lower]= all(data_upper_type[idx_upper,:]==data_lower_type[idx_lower,:]);
+                         dist_diff[idx_upper,nAtomPerLayer+idx_lower] = max(abs(np.divide(data_upper_dist[idx_upper,:]-data_lower_dist[idx_lower,:], data_upper_dist[idx_upper,:]+data_lower_dist[idx_lower,:])));
+                         type_ok[idx_upper,nAtomPerLayer+idx_lower]= all(data_upper_type[idx_upper,:]==data_lower_type[idx_lower,:]);
 
+                dist_diff = dist_diff + np.transpose(dist_diff);
+                type_ok = type_ok + np.transpose(type_ok);
                 match_matrix = (dist_diff<=dist_tol_rate) & type_ok;
 
-                g = networkx.to_networkx_graph(match_matrix); # 
+                g = networkx.to_networkx_graph(match_matrix); 
                 # find the maximal matching of graph g
                 if len(networkx.maximal_matching(g))< nAtomPerLayer: 
                     polar=True;
@@ -283,12 +285,13 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
                         minDiffRate = np.min([np.min(dist_diff), minDiffRate]);
 
                     break;
+                
                 # END of nSurface loop
 
             if not(polar) and not(firstRound): # first round NonPolar
                 firstRound = True
                 layer_thickness = 0
-                minNP_z = surface_z[-1]
+                minNP_z = np.array([surface_z[-1]])
                 perodicity_lower_bound = abs(init_z - minNP_z); # the periodicity should be larger than this
             else:
                 if not(polar) and firstRound and (abs(minNP_z[0] - surface_z[-1])>perodicity_lower_bound): # the second round non-polar
@@ -303,7 +306,7 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
                     #  atom_type = atom_type(isNP);
                     #  atom_cell=[num2cell(minNPStruc) atom_type];
                     
-                     #  # create a new txt file that contains the maximal non-polar structure
+                    #  # create a new txt file that contains the maximal non-polar structure
                     # isWin = ~isempty(strfind(computer, 'PCWIN'));
                     # [pathstr,name,ext] = fileparts(filepath);
                     # mkdir(pathstr,'minNonPolar5');
@@ -333,16 +336,19 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
             if polar and firstRound:
                 layer_thickness = layer_thickness + 1;
                 minNP_z = np.append(minNP_z,surface_z[-1]);
+            #pdb.set_trace();
 
         data_delete = (atom_coor[:, 2]==surface_z[-1]);
         data_delete = data_delete[~forDelete];
-        forDelete= np.squeeze((forDelete | (atom_coor[:, 2]==surface_z[-1])));
+        forDelete= np.squeeze(forDelete | (atom_coor[:, 2]==surface_z[-1]));
         atom_dist = atom_dist[~data_delete,:];
         atom_dist = atom_dist[:,~data_delete];
         ele_n = ele_n[~data_delete,:];
         ele_n = ele_n[:,~data_delete];
+        #pdb.set_trace();
         surface_n=surface_n-1;
         surface_z = np.delete(surface_z, -1);
+        #pdb.set_trace();
 
     
     z_thickness=float("nan");
@@ -541,6 +547,7 @@ tStart = time.time()
 nStruc = 0;
 # Read input
 folderPath, z_digit, dis_tol_rate, checkAllLayer = readInput(inputFile)
+
 if isWin:
     typeName = folderPath.split("\\")[-1]
 elif isLinux:
