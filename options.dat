@@ -1,4 +1,4 @@
-folderPath		C:\Users\Boya\Desktop\test		# the path of folder that contains all of the .in files for checking;
+folderPath		C:\Users\Boya\Dropbox\polar surface\GaAs-max9		# the path of folder that contains all of the .in files for checking;
 z_digit			4 				# options for check polar
 dis_tol_rate		1e-4			# options for check polar
 Find_all_nonpolar_surface	0 				

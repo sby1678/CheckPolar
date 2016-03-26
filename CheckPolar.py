@@ -28,6 +28,7 @@ systemInfo = platform.system();
 if systemInfo == "Windows":
     isWin = True
 elif systemInfo == "Linux":
+    isWin = False
     isLinux = True
 else:
     print "The program is designed to run on Windows or Linux system"
