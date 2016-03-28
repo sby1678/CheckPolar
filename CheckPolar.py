@@ -19,11 +19,78 @@ import pdb # for debug
 # Based on MatBuilder-V1
 
 
-if len(sys.argv) <=1:
-    print "Usage:\n%s optionsFile"%sys.argv[0]
-    exit()
+############################################## build the input UI
+import Tkinter as tki
+import tkFileDialog
 
-inputFile = sys.argv[1]
+top = tki.Tk()
+top.wm_title("CheckPolar")
+
+folderPath = "";
+z_digit = 3;
+dis_tol_rate = 1e-4;
+checkAllLayer = False;
+
+def closeWin():
+    # write the output for debug purpose 
+    #with open("opts.txt", 'w+') as outfile:
+    #    outfile.write(folderPath)
+    #    outfile.write("\n")
+    #    outfile.write(str(isFindAll.get()))
+    #    outfile.write("\n")
+    #    zD =  int(e1.get());
+    #    outfile.write(str(zD));
+    #    outfile.write("\n")
+    #    dtr = float(e2.get());
+    #    outfile.write(str(dtr));
+    global z_digit, dis_tol_rate, checkAllLayer
+    z_digit =  int(e1.get());
+    checkAllLayer = isFindAll.get();
+    dis_tol_rate = float(e2.get());
+    # close the window
+    global top;
+    top.destroy();
+
+def askdir():
+    global folderPath;
+    folderPath = tkFileDialog.askdirectory();
+    global b1label;
+    b1label.configure(text = folderPath)
+
+b1 = tki.Button(top, text = "select path", command = askdir);
+b1.grid(row = 0, column=0, sticky = tki.W);
+b1label = tki.Label(top, text = folderPath);
+b1label.grid(row = 0, column=1,sticky = tki.W);
+
+e1label = tki.Label(top, text = "Z digit: ");
+e1 = tki.Entry(top);
+e1.insert(0,"3");
+e1label.grid(row = 1, column=0);
+e1.grid(row = 1, column = 1);
+
+e2label = tki.Label(top, text = "Distance tolerance rate: ");
+e2 = tki.Entry(top);
+e2.insert(0,"1e-4");
+e2label.grid(row = 2, column=0);
+e2.grid(row = 2, column = 1);
+
+
+
+isFindAll = tki.IntVar();
+c = tki.Checkbutton(top, text="Find all non-polar surface?", variable=isFindAll)
+c.grid(row = 3, columnspan= 2,sticky = tki.W);
+
+b2 = tki.Button(top, text = "Run", command = closeWin);
+b2.grid(row = 4, columnspan = 2);
+
+top.mainloop()
+
+############################# end of UI
+
+#if len(sys.argv) <=1:
+#    print "Usage:\n%s optionsFile"%sys.argv[0]
+#    exit()
+#inputFile = sys.argv[1]
 systemInfo = platform.system();
 if systemInfo == "Windows":
     isWin = True
@@ -547,9 +614,10 @@ def calcRuntime(tStart,tStop):
 tStart = time.time()
 nStruc = 0;
 # Read input
-folderPath, z_digit, dis_tol_rate, checkAllLayer = readInput(inputFile)
+# folderPath, z_digit, dis_tol_rate, checkAllLayer = readInput(inputFile)
 
 if isWin:
+    folderPath = folderPath.replace("/", "\\")
     typeName = folderPath.split("\\")[-1]
 elif isLinux:
     typeName = folderPath.split("/")[-1]
