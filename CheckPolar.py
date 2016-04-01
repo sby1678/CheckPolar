@@ -27,7 +27,7 @@ top = tki.Tk()
 top.wm_title("CheckPolar")
 
 folderPath = "";
-z_digit = 3;
+z_layer_tol = 1e-3;
 dis_tol_rate = 1e-4;
 checkAllLayer = False;
 
@@ -43,8 +43,8 @@ def closeWin():
     #    outfile.write("\n")
     #    dtr = float(e2.get());
     #    outfile.write(str(dtr));
-    global z_digit, dis_tol_rate, checkAllLayer
-    z_digit =  int(e1.get());
+    global z_layer_tol, dis_tol_rate, checkAllLayer
+    z_layer_tol =  float(e1.get());
     checkAllLayer = isFindAll.get();
     dis_tol_rate = float(e2.get());
     # close the window
@@ -62,9 +62,9 @@ b1.grid(row = 0, column=0, sticky = tki.W);
 b1label = tki.Label(top, text = folderPath);
 b1label.grid(row = 0, column=1,sticky = tki.W);
 
-e1label = tki.Label(top, text = "Z digit: ");
+e1label = tki.Label(top, text = "Layer thickness (angstrom): ");
 e1 = tki.Entry(top);
-e1.insert(0,"3");
+e1.insert(0,"1e-3");
 e1label.grid(row = 1, column=0);
 e1.grid(row = 1, column = 1);
 
@@ -114,7 +114,7 @@ def readInput(inputFile):
 
     line = file.readline()
     line = line.split()
-    z_digit = int(line[1])
+    z_layer_tol = float(line[1])
 
     line = file.readline()
     line = line.split()
@@ -124,7 +124,7 @@ def readInput(inputFile):
     line = line.split()
     checkAllLayer = bool(int(line[1]))
 
-    return folderPath, z_digit, dis_tol_rate, checkAllLayer
+    return folderPath, z_layer_tol, dis_tol_rate, checkAllLayer
 
 def compute_min_dist(vec_v, vec_a, vec_b):
 # algorithm provided by Craig Schroeder
@@ -200,7 +200,7 @@ def compute_min_dist(vec_v, vec_a, vec_b):
 
 
 
-def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, max_compare = float("Inf"), inverse_struc = False):
+def checkPolar(atom_coor,atomLabels, vecX, vecY, z_layer_tol=1e-3, dist_tol_rate=0.01, max_compare = float("Inf"), inverse_struc = False):
     # Description of the input variables:
     # - atom_coor: of the atoms, numpy.array(Natoms,3)
     # - atomLabels: numpy.array with integers denoting atom types, 
@@ -253,7 +253,7 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
     atom_dist[range(nAtoms), range(nAtoms)] = -1; # avoid zero-division in later steps
 
     # round the z-coordinate
-    atom_coor[:, 2] = np.around(atom_coor[:, 2], decimals = z_digit);
+    atom_coor[:, 2] = np.floor(atom_coor[:, 2] / z_layer_tol)*z_layer_tol;
     # atoms with same cut_z coord are considered on the same "surface"
     # inverse_struc=False: the resut is ordered from small to large
     if inverse_struc:
@@ -426,7 +426,7 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, 
 
     return polar, z_thickness, minDiffRate, typeDiff
 
-def checkPolar_all(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.01, max_compare = float("Inf"), inverse_struc = False):
+def checkPolar_all(atom_coor,atomLabels, vecX, vecY, z_layer_tol=1e-3, dist_tol_rate=0.01, max_compare = float("Inf"), inverse_struc = False):
     # Description of the input variables:
     # - atom_coor: of the atoms, numpy.array(Natoms,3)
     # - atomLabels: numpy.array with integers denoting atom types, 
@@ -471,7 +471,7 @@ def checkPolar_all(atom_coor,atomLabels, vecX, vecY, z_digit=4, dist_tol_rate=0.
     atom_dist[range(nAtoms), range(nAtoms)] = -1; # avoid zero-division in later steps
 
     # round the z-coordinate
-    atom_coor[:, 2] = np.around(atom_coor[:, 2], decimals = z_digit);
+    atom_coor[:, 2] = np.floor(atom_coor[:, 2] / z_layer_tol) * z_layer_tol;
     # atoms with same cut_z coord are considered on the same "surface"
     # inverse_struc=False: the resut is ordered from small to large
     if inverse_struc:
@@ -614,7 +614,7 @@ def calcRuntime(tStart,tStop):
 tStart = time.time()
 nStruc = 0;
 # Read input
-# folderPath, z_digit, dis_tol_rate, checkAllLayer = readInput(inputFile)
+# folderPath, z_layer_tol, dis_tol_rate, checkAllLayer = readInput(inputFile)
 
 if isWin:
     folderPath = folderPath.replace("/", "\\")
@@ -635,9 +635,9 @@ elif isLinux:
 
 isPolar  = []; 
 if not(checkAllLayer):
-    polarFilename=typeName+"-poalrity.txt"
+    polarFilename=typeName+"-polarity.txt"
     file = open(fPath+polarFilename, 'w+')
-    file.write("z_digit: %d \n"%z_digit)
+    file.write("layer thickness: %d \n"%z_layer_tol)
     file.write("relative tolerance of distance difference: %.2e \n \n"%dis_tol_rate)
     file.write("Filename\t\tisPolar\tperodicity\tTypeDiff?\tminDiffRate\n")
     file.close()
@@ -687,7 +687,7 @@ for fn in os.listdir(folderPath):
         # check polarity
         if not(checkAllLayer):
             print "Check polarity"
-            polar,ped,minDiff, typeDiff = checkPolar(atom_coor,atom_label, vec_x, vec_y, z_digit, dis_tol_rate, inverse_struc = True)
+            polar,ped,minDiff, typeDiff = checkPolar(atom_coor,atom_label, vec_x, vec_y, z_layer_tol, dis_tol_rate, inverse_struc = True)
             isPolar.append(polar)
 
             if not(polar):
@@ -705,9 +705,9 @@ for fn in os.listdir(folderPath):
         else:
             print "Check polarity on all layers"
             is_Polar, z_coords, minDiffRate, typeDiff = checkPolar_all(atom_coor,atom_label, 
-                vec_x, vec_y, z_digit, dis_tol_rate, inverse_struc = True)
+                vec_x, vec_y, z_layer_tol, dis_tol_rate, inverse_struc = True)
             file = open(rstPath+fn.split(".")[0]+".txt", 'w+')
-            file.write("z_digit: %d \n"%z_digit)
+            file.write("layer thickness %d \n"%z_layer_tol)
             file.write("relative tolerance of distance difference: %.2e \n \n"%dis_tol_rate)
             file.write("z_coords\tis_Polar\ttypeDiff\tminDiffRate \n")
                       
