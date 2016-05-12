@@ -28,7 +28,7 @@ top.wm_title("CheckPolar")
 
 folderPath = "";
 z_layer_tol = 1e-3;
-dis_tol_rate = 1e-4;
+dis_tol_rate = 1e-3;
 checkAllLayer = False;
 
 def closeWin():
@@ -70,7 +70,7 @@ e1.grid(row = 1, column = 1);
 
 e2label = tki.Label(top, text = "Distance tolerance rate: ");
 e2 = tki.Entry(top);
-e2.insert(0,"1e-4");
+e2.insert(0,"1e-3");
 e2label.grid(row = 2, column=0);
 e2.grid(row = 2, column = 1);
 
@@ -257,7 +257,8 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_layer_tol=1e-3, dist_tol_rate
     # atoms with same cut_z coord are considered on the same "surface"
     # inverse_struc=False: the resut is ordered from small to large
     if inverse_struc:
-        surface_z= np.squeeze(np.unique(atom_coor[:, 2], return_inverse=True))[0]; 
+        surface_z = -np.squeeze(np.unique(-atom_coor[:, 2]));
+        #pdb.set_trace();
     else:
         surface_z= np.squeeze(np.unique(atom_coor[:, 2], return_inverse=False)); 
 
@@ -271,7 +272,7 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_layer_tol=1e-3, dist_tol_rate
             max_compare=(surface_n/2);
         polar=False;
         doCompare = True;
-        minDiffRate = 1
+        minDiffRate = True
         typeDiff = False
 
         if firstRound:
@@ -310,24 +311,14 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_layer_tol=1e-3, dist_tol_rate
                 #     polar = True;
                 #     break;
 
-                # for each atom, sort the distance from this atom to the others (small to large)
-                sort1idx_u = np.argsort(data_upper_dist, axis = 1);
-                sort1idx_l = np.argsort(data_lower_dist,axis = 1);
-
+                # for each atom, sort the matrix by: type primarily, distance secondarily
                 for i in xrange(nAtomPerLayer):
-                    data_upper_type[i,:] = data_upper_type[i,sort1idx_u[i,:]];
-                    data_lower_type[i,:] = data_lower_type[i,sort1idx_l[i,:]];
-                    data_upper_dist[i,:] = data_upper_dist[i,sort1idx_u[i,:]];
-                    data_lower_dist[i,:] = data_lower_dist[i,sort1idx_l[i,:]];
-
-                # for each atom, sort the type from this atom to the others (small to large)
-                sort2idx_u = np.argsort(data_upper_type, axis = 1);
-                sort2idx_l = np.argsort(data_lower_type,axis = 1);
-                for i in xrange(nAtomPerLayer):
-                    data_upper_type[i,:] = data_upper_type[i,sort2idx_u[i,:]];
-                    data_lower_type[i,:] = data_lower_type[i,sort2idx_l[i,:]];
-                    data_upper_dist[i,:] = data_upper_dist[i,sort2idx_u[i,:]];
-                    data_lower_dist[i,:] = data_lower_dist[i,sort2idx_l[i,:]];
+                    sortidx_u = np.lexsort((data_upper_dist[i,:], data_upper_type[i,:]));
+                    sortidx_l = np.lexsort((data_lower_dist[i,:], data_lower_type[i,:]));
+                    data_upper_dist[i,:] = data_upper_dist[i,sortidx_u];
+                    data_upper_type[i,:] = data_upper_type[i,sortidx_u];
+                    data_lower_dist[i,:] = data_lower_dist[i,sortidx_l];
+                    data_lower_type[i,:] = data_lower_type[i,sortidx_l];
 
                 dist_diff = np.zeros([nAtomPerLayer*2,nAtomPerLayer*2], dtype = float); # rate of difference on distance
                 type_ok = np.zeros([nAtomPerLayer*2,nAtomPerLayer*2], dtype = bool); # true if the type items are matching between a upper-atom and a lower-atom
@@ -341,6 +332,8 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_layer_tol=1e-3, dist_tol_rate
                 match_matrix = (dist_diff<=dist_tol_rate) & type_ok;
 
                 g = networkx.to_networkx_graph(match_matrix); 
+                # pdb.set_trace();
+
                 # find the maximal matching of graph g
                 if len(networkx.maximal_matching(g))< nAtomPerLayer: 
                     polar=True;
@@ -348,11 +341,12 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_layer_tol=1e-3, dist_tol_rate
                     g = networkx.to_networkx_graph(type_ok);
                     if len(networkx.maximal_matching(g))< nAtomPerLayer: 
                         typeDiff = True;
-                        minDiffRate = float("nan");
+                        minDiffRate = False;
                     else:
-                        minDiffRate = np.min([np.min(dist_diff), minDiffRate]);
+                        minDiffRate = True;
 
                     break;
+
                 
                 # END of nSurface loop
 
@@ -366,7 +360,7 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_layer_tol=1e-3, dist_tol_rate
                     minNP_z = np.append(minNP_z, surface_z[-1]);
                     layer_thickness = layer_thickness + 1;
                     z_thickness = minNP_z[0]-minNP_z[-1];
-                    minDiffRate = float("nan")
+                    minDiffRate = False
                     #  vz(3) = z_thickness;
                     #  isNP = ismember(atom_coor(:,3), minNP_z);
                     #  minNPStruc= atom_coor(isNP,:);
@@ -416,7 +410,7 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_layer_tol=1e-3, dist_tol_rate
         #pdb.set_trace();
         surface_n=surface_n-1;
         surface_z = np.delete(surface_z, -1);
-        #pdb.set_trace();
+        # pdb.set_trace();
 
     
     z_thickness=float("nan");
@@ -522,24 +516,14 @@ def checkPolar_all(atom_coor,atomLabels, vecX, vecY, z_layer_tol=1e-3, dist_tol_
             #     polar = True;
             #     break;
 
-            # for each atom, sort the distance from this atom to the others (small to large)
-            sort1idx_u = np.argsort(data_upper_dist, axis = 1);
-            sort1idx_l = np.argsort(data_lower_dist,axis = 1);
-
+            # for each atom, sort by: type primarily, distance secondarily
             for i in xrange(nAtomPerLayer):
-                data_upper_type[i,:] = data_upper_type[i,sort1idx_u[i,:]];
-                data_lower_type[i,:] = data_lower_type[i,sort1idx_l[i,:]];
-                data_upper_dist[i,:] = data_upper_dist[i,sort1idx_u[i,:]];
-                data_lower_dist[i,:] = data_lower_dist[i,sort1idx_l[i,:]];
-
-            # for each atom, sort the type from this atom to the others (small to large)
-            sort2idx_u = np.argsort(data_upper_type, axis = 1);
-            sort2idx_l = np.argsort(data_lower_type,axis = 1);
-            for i in xrange(nAtomPerLayer):
-                data_upper_type[i,:] = data_upper_type[i,sort2idx_u[i,:]];
-                data_lower_type[i,:] = data_lower_type[i,sort2idx_l[i,:]];
-                data_upper_dist[i,:] = data_upper_dist[i,sort2idx_u[i,:]];
-                data_lower_dist[i,:] = data_lower_dist[i,sort2idx_l[i,:]];
+                    sortidx_u = np.lexsort((data_upper_dist[i,:], data_upper_type[i,:]));
+                    sortidx_l = np.lexsort((data_lower_dist[i,:], data_lower_type[i,:]));
+                    data_upper_dist[i,:] = data_upper_dist[i,sortidx_u];
+                    data_upper_type[i,:] = data_upper_type[i,sortidx_u];
+                    data_lower_dist[i,:] = data_lower_dist[i,sortidx_l];
+                    data_lower_type[i,:] = data_lower_type[i,sortidx_l];
 
             dist_diff = np.zeros([nAtomPerLayer,nAtomPerLayer], dtype = float); # rate of difference on distance
             type_ok = np.zeros([nAtomPerLayer,nAtomPerLayer], dtype = bool); # true if the type items are matching between a upper-atom and a lower-atom
@@ -551,6 +535,7 @@ def checkPolar_all(atom_coor,atomLabels, vecX, vecY, z_layer_tol=1e-3, dist_tol_
             match_matrix = (dist_diff<=dist_tol_rate) & type_ok;
 
             g = networkx.to_networkx_graph(match_matrix); # 
+
             # find the maximal matching of graph g
             if len(networkx.maximal_matching(g))< nAtomPerLayer: 
                 is_Polar[current_surface]=True;
@@ -558,13 +543,13 @@ def checkPolar_all(atom_coor,atomLabels, vecX, vecY, z_layer_tol=1e-3, dist_tol_
                 g = networkx.to_networkx_graph(type_ok);
                 if len(networkx.maximal_matching(g))< nAtomPerLayer: 
                     typeDiff[current_surface] = True;
-                    minDiffRate[current_surface] = float("nan");
+                    minDiffRate[current_surface] = False;
                 else:
-                    minDiffRate[current_surface] = np.min([np.min(dist_diff), minDiffRate[current_surface]]);
+                    minDiffRate[current_surface] = True;
 
                 break;
             else:
-                minDiffRate[current_surface] = float("nan");
+                minDiffRate[current_surface] = False;
 
 
             # END of nSurface loop
@@ -579,7 +564,7 @@ def checkPolar_all(atom_coor,atomLabels, vecX, vecY, z_layer_tol=1e-3, dist_tol_
         surface_n=surface_n-1;
         surface_z = np.delete(surface_z, -1);
 
-    minDiffRate[-1] = float("nan")
+    minDiffRate[-1] = False
     is_Polar = is_Polar[::-1];
     minDiffRate = minDiffRate[::-1]
     typeDiff = typeDiff[::-1]
@@ -637,7 +622,7 @@ isPolar  = [];
 if not(checkAllLayer):
     polarFilename=typeName+"-polarity.txt"
     file = open(fPath+polarFilename, 'w+')
-    file.write("layer thickness: %d \n"%z_layer_tol)
+    file.write("layer thickness: %.2e \n"%z_layer_tol)
     file.write("relative tolerance of distance difference: %.2e \n \n"%dis_tol_rate)
     file.write("Filename\t\tisPolar\tperodicity\tTypeDiff?\tminDiffRate\n")
     file.close()
@@ -687,7 +672,8 @@ for fn in os.listdir(folderPath):
         # check polarity
         if not(checkAllLayer):
             print "Check polarity"
-            polar,ped,minDiff, typeDiff = checkPolar(atom_coor,atom_label, vec_x, vec_y, z_layer_tol, dis_tol_rate, inverse_struc = True)
+            polar,ped,minDiff, typeDiff = checkPolar(atom_coor,atom_label, 
+                vec_x, vec_y, z_layer_tol, dis_tol_rate, inverse_struc = True)
             isPolar.append(polar)
 
             if not(polar):
@@ -695,24 +681,24 @@ for fn in os.listdir(folderPath):
             elif typeDiff:
                 print "The structure is polar, with a mismatch on atom type."   
             else:
-                print "The structure is polar, with a minimal distance difference rate %.3e."%minDiff 
+                print "The structure is polar, with a distance difference larger than %.3e."%dis_tol_rate 
 
             file = open(fPath+polarFilename, 'a')
-            file.write(fn+"\t\t%d\t\t%f\t\t%d\t\t%.3e\n"%(polar,ped,typeDiff, minDiff))
+            file.write(fn+"\t\t%d\t\t%f\t\t%d\t\t%d\n"%(polar,ped,typeDiff, minDiff))
             file.close()
 
             nStruc+=1;
         else:
             print "Check polarity on all layers"
             is_Polar, z_coords, minDiffRate, typeDiff = checkPolar_all(atom_coor,atom_label, 
-                vec_x, vec_y, z_layer_tol, dis_tol_rate, inverse_struc = True)
+                vec_x, vec_y, z_layer_tol, dis_tol_rate, inverse_struc = False)
             file = open(rstPath+fn.split(".")[0]+".txt", 'w+')
             file.write("layer thickness %d \n"%z_layer_tol)
             file.write("relative tolerance of distance difference: %.2e \n \n"%dis_tol_rate)
             file.write("z_coords\tis_Polar\ttypeDiff\tminDiffRate \n")
                       
             for i in xrange(0, len(is_Polar)):
-                file.write("%f\t\t%d\t\t%d\t\t%.3e\n"%(z_coords[i],is_Polar[i],typeDiff[i], minDiffRate[i]))
+                file.write("%f\t\t%d\t\t%d\t\t%d\n"%(z_coords[i],is_Polar[i],typeDiff[i], minDiffRate[i]))
             file.close()
             nStruc+=1;
 
