@@ -75,10 +75,12 @@ e2label.grid(row = 2, column=0);
 e2.grid(row = 2, column = 1);
 
 
-
 isFindAll = tki.IntVar();
 c = tki.Checkbutton(top, text="Find all non-polar surface?", variable=isFindAll)
-c.grid(row = 3, columnspan= 2,sticky = tki.W);
+# remove the all-polar option in UI
+# c.grid(row = 3, columnspan= 2,sticky = tki.W);
+c.pack_forget();
+
 
 b2 = tki.Button(top, text = "Run", command = closeWin);
 b2.grid(row = 4, columnspan = 2);
@@ -200,9 +202,9 @@ def compute_min_dist(vec_v, vec_a, vec_b):
 
 
 
-def checkPolar(atom_coor,atomLabels, vecX, vecY, z_layer_tol=1e-3, dist_tol_rate=0.01, max_compare = float("Inf"), inverse_struc = False):
+def checkPolar(atom_coor,atomLabels, vecX, vecY, z_layer_tol=1e-3, dist_tol_rate=1e-3, max_compare = float("Inf"), inverse_struc = False):
     # Description of the input variables:
-    # - atom_coor: of the atoms, numpy.array(Natoms,3)
+    # - atom_coor: the Cartesian corrdination of the atoms, numpy.array(Natoms,3)
     # - atomLabels: numpy.array with integers denoting atom types, 
     #   i.e [0,1,1,0,2,...,natoms]. The order of the atoms is the same 
     #   as in positions array.
@@ -420,7 +422,7 @@ def checkPolar(atom_coor,atomLabels, vecX, vecY, z_layer_tol=1e-3, dist_tol_rate
 
     return polar, z_thickness, minDiffRate, typeDiff
 
-def checkPolar_all(atom_coor,atomLabels, vecX, vecY, z_layer_tol=1e-3, dist_tol_rate=0.01, max_compare = float("Inf"), inverse_struc = False):
+def checkPolar_all(atom_coor,atomLabels, vecX, vecY, z_layer_tol=1e-3, dist_tol_rate=1e-3, max_compare = float("Inf"), inverse_struc = False):
     # Description of the input variables:
     # - atom_coor: of the atoms, numpy.array(Natoms,3)
     # - atomLabels: numpy.array with integers denoting atom types, 
@@ -601,16 +603,8 @@ nStruc = 0;
 # Read input
 # folderPath, z_layer_tol, dis_tol_rate, checkAllLayer = readInput(inputFile)
 
-if isWin:
-    folderPath = folderPath.replace("/", "\\")
-    typeName = folderPath.split("\\")[-1]
-elif isLinux:
-    typeName = folderPath.split("/")[-1]
+typeName = os.path.split(folderPath)[1]
 
-if isWin:
-    fPath = folderPath + "\\";
-elif isLinux:
-    fPath = folderPath + "/";
 # # create a list of Miller indices
 # if not useMillerList:
 #     MillerList = createMillerList(maxMillerInd)
@@ -621,13 +615,13 @@ elif isLinux:
 isPolar  = []; 
 if not(checkAllLayer):
     polarFilename=typeName+"-polarity.txt"
-    file = open(fPath+polarFilename, 'w+')
+    file = open(os.path.join(folderPath,polarFilename), 'w+')
     file.write("layer thickness: %.2e \n"%z_layer_tol)
     file.write("relative tolerance of distance difference: %.2e \n \n"%dis_tol_rate)
     file.write("Filename\t\tisPolar\tperodicity\tTypeDiff?\tminDiffRate\n")
     file.close()
 else:
-    rstPath = fPath + "allNonPolarRst"
+    rstPath = os.path.join(folderPath,"allNonPolarRst")
     if not os.path.exists(rstPath):
         os.makedirs(rstPath)
     if isWin:
@@ -648,7 +642,7 @@ for fn in os.listdir(folderPath):
         nEle = 0;
 
 
-        with open(fPath+fn, 'r') as openfileobject:
+        with open(os.path.join(folderPath,fn), 'r') as openfileobject:
             for line in openfileobject:
                 nline +=1;
                 line  = line.split();
@@ -683,7 +677,7 @@ for fn in os.listdir(folderPath):
             else:
                 print "The structure is polar, with a distance difference larger than %.3e."%dis_tol_rate 
 
-            file = open(fPath+polarFilename, 'a')
+            file = open(os.path.join(folderPath, polarFilename), 'a')
             file.write(fn+"\t\t%d\t\t%f\t\t%d\t\t%d\n"%(polar,ped,typeDiff, minDiff))
             file.close()
 
@@ -692,7 +686,7 @@ for fn in os.listdir(folderPath):
             print "Check polarity on all layers"
             is_Polar, z_coords, minDiffRate, typeDiff = checkPolar_all(atom_coor,atom_label, 
                 vec_x, vec_y, z_layer_tol, dis_tol_rate, inverse_struc = False)
-            file = open(rstPath+fn.split(".")[0]+".txt", 'w+')
+            file = open(os.path.join(rstPath,fn.split(".")[0]+".txt"), 'w+')
             file.write("layer thickness %d \n"%z_layer_tol)
             file.write("relative tolerance of distance difference: %.2e \n \n"%dis_tol_rate)
             file.write("z_coords\tis_Polar\ttypeDiff\tminDiffRate \n")
@@ -709,13 +703,13 @@ runtime = calcRuntime(tStart,tStop)
 #Output statistics
 if not(checkAllLayer):
     nNonPolar = nStruc - sum(isPolar)
-    file = open(fPath+'stats.out','w+')
+    file = open(os.path.join(folderPath, 'stats.out'),'w+')
     file.write("Total number of structures: %i\n"%nStruc)
     file.write("Total number of polar structure: %i\n"%nNonPolar)
     file.write("\nRuntime: %i min %i sec\n"%(runtime[0],runtime[1]))
     file.close()
 else:
-    file = open(fPath+'stats.out','w+')
+    file = open(os.path.join(folderPath, 'stats.out'),'w+')
     file.write("Total number of structures: %i\n"%nStruc)
     file.write("\nRuntime: %i min %i sec\n"%(runtime[0],runtime[1]))
     file.close()
