@@ -624,10 +624,6 @@ else:
     rstPath = os.path.join(folderPath,"allNonPolarRst")
     if not os.path.exists(rstPath):
         os.makedirs(rstPath)
-    if isWin:
-        rstPath = rstPath + "\\";
-    elif isLinux:
-        rstPath = rstPath + "/";
 
 
 
